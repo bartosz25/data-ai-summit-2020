@@ -2,7 +2,8 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
-import com.waitingforcode.source.SparkSessionFactory
+import com.waitingforcode.data.configuration.MultipleStateOperationsDataGeneratorConfiguration
+import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.streaming.OutputMode
@@ -12,14 +13,9 @@ object MultipleStateOperationsDemo extends App {
 
   val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Multiple state operations")
   import sparkSession.implicits._
+  val sourceContext = SourceContext(MultipleStateOperationsDataGeneratorConfiguration.topicName)
 
-  val inputKafkaRecords = sparkSession.readStream
-    .format("kafka")
-    .option("kafka.bootstrap.servers", "localhost:29092")
-    .option("client.id", s"multiple_states_${System.currentTimeMillis()}")
-    .option("subscribe", "multiple_states_topic")
-    .option("startingOffsets", "EARLIEST")
-    .load()
+  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
   val inputKafkaRecordSchema = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("id", IntegerType),

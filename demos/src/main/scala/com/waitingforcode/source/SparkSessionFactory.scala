@@ -11,3 +11,14 @@ object SparkSessionFactory {
     .getOrCreate()
 
 }
+
+case class SourceContext(topicName: String) {
+  def inputStream(sparkSession: SparkSession) = {
+    sparkSession.readStream
+      .format("kafka")
+      .option("kafka.bootstrap.servers", "localhost:29092")
+      .option("subscribe", topicName)
+      .option("startingOffsets", "EARLIEST")
+      .load()
+  }
+}
