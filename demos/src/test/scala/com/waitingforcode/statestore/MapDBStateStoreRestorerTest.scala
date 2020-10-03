@@ -2,6 +2,7 @@ package com.waitingforcode.statestore
 
 import java.io.File
 
+import com.waitingforcode.statestore.MapDBStateStore.EntriesName
 import org.apache.commons.io.FileUtils
 import org.mapdb.{DBMaker, Serializer}
 import org.scalatest.BeforeAndAfter
@@ -24,7 +25,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       .fileDB(s"${mapDBTestDirectory}/test1/snapshot-5")
       .fileMmapEnableIfSupported()
       .make()
-    dbTest1.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+    dbTest1.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen().putAll(Map(
       "a".getBytes -> "1".getBytes,
       "b".getBytes -> "2".getBytes).asJava)
@@ -35,7 +36,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       .fileDB(s"${mapDBTestDirectory}/test2/snapshot-${snapshotNumber}")
       .fileMmapEnableIfSupported()
       .make()
-    dbTest2Snapshot.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+    dbTest2Snapshot.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen().putAll(Map(
       "a".getBytes -> "1".getBytes,
       "b".getBytes -> "2".getBytes).asJava)
@@ -47,7 +48,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
         .fileDB(s"${mapDBTestDirectory}/test2/delta-${deltaNumber}-update")
         .fileMmapEnableIfSupported()
         .make()
-      dbTestDelta.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+      dbTestDelta.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
         .create().putAll(Map(
         s"${deltaNumber}".getBytes -> s"${deltaNumber}".getBytes,
         "a".getBytes -> s"${deltaNumber}".getBytes,
@@ -59,7 +60,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       .fileDB(s"${mapDBTestDirectory}/test2/delta-9-delete")
       .fileMmapEnableIfSupported()
       .make()
-    dbTestDeltaDelete.hashSet("state-all-entries", Serializer.BYTE_ARRAY)
+    dbTestDeltaDelete.hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
       .createOrOpen().addAll(Seq("b".getBytes).asJavaCollection)
     dbTestDeltaDelete.close()
 
@@ -70,7 +71,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
         .fileDB(s"${mapDBTestDirectory}/test3/delta-${deltaNumber}-update")
         .fileMmapEnableIfSupported()
         .make()
-      dbTest3Delta.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+      dbTest3Delta.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
         .create().putAll(Map(
         s"${deltaNumber}".getBytes -> s"${deltaNumber}".getBytes,
         "a".getBytes -> s"${deltaNumber}".getBytes,
@@ -82,7 +83,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       .fileDB(s"${mapDBTestDirectory}/test3/delta-3-delete")
       .fileMmapEnableIfSupported()
       .make()
-    dbTest3DeltaDelete.hashSet("state-all-entries", Serializer.BYTE_ARRAY)
+    dbTest3DeltaDelete.hashSet(EntriesName, Serializer.BYTE_ARRAY)
       .createOrOpen().addAll(Seq("b".getBytes).asJavaCollection)
     dbTest3DeltaDelete.close()
   }

@@ -27,7 +27,7 @@ class MapDBStateStoreProvider extends StateStoreProvider {
   // TODO: the questions I have regarding this db:
   //       - if the fileDB will contain a transaction log or only the most recent values ?
   private var mapWithAllEntries =
-    db.hashMap(s"state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
+    db.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
 
 
   override def init(stateStoreId: StateStoreId, keySchema: StructType, valueSchema: StructType,
@@ -72,10 +72,12 @@ class MapDBStateStoreProvider extends StateStoreProvider {
     }
 
     lastCommittedVersion = version
-    new MapDBStateStore(previousVersion = version, db = db,
+    new MapDBStateStore(previousVersion = version, mapAllEntriesDb = db,
       mapWithAllEntries = mapWithAllEntries,
       checkpointStorePath = this.checkpointStorePath,
       localSnapshotPath = this.localSnapshotPath,
+      localStorePath = this.localStorePath,
+      performLocalSnapshot = (version + 1 % this.stateStoreConf.minDeltasForSnapshot == 0),
       id = stateStoreIdValue,
       keySchema = this.keySchema, valueSchema = this.valueSchema)
   }

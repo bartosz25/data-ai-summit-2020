@@ -6,29 +6,45 @@ import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.execution.streaming.state.{StateStore, StateStoreId, StateStoreMetrics, UnsafeRowPair}
 import org.apache.spark.sql.types.StructType
-import org.mapdb.{DB, HTreeMap, Serializer, Store}
+import org.mapdb.{DB, DBMaker, HTreeMap, Serializer}
 
-import scala.collection.JavaConverters.{asScalaSetConverter, iterableAsScalaIterableConverter}
+import scala.collection.JavaConverters.asScalaSetConverter
 
+// TODO: for the checkpoint, use the StateStoreId !!
 class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
                       checkpointStorePath: String, localSnapshotPath: String,
-                      db: DB, mapWithAllEntries: HTreeMap[Array[Byte], Array[Byte]],
+                      performLocalSnapshot: Boolean,
+                      localStorePath: String,
+                      mapAllEntriesDb: DB, mapWithAllEntries: HTreeMap[Array[Byte], Array[Byte]],
                       keySchema: StructType, valueSchema: StructType) extends StateStore {
 
   private var isCommitted = false
   val version = previousVersion + 1
   private var numberOfKeys = 0L
 
-  private val versionMap = db
-    .hashMap(s"state-delta-update-${version}", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+  private val updatesFileName = s"updates-${id.operatorId}-${id.partitionId}.db"
+  private val updatesFileFullPath = s"${localStorePath}/${version}/${updatesFileName}"
+  private val updatesFromVersionDb = DBMaker
+    .fileDB(updatesFileFullPath)
+    .fileMmapEnableIfSupported()
+    .make()
+  private val updatesFromVersion = updatesFromVersionDb
+    .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
     .createOrOpen()
-  private val deletesMap = db
-    .hashSet(s"state-delta-delete-${version}", Serializer.BYTE_ARRAY)
+
+  private val deletesFileName = s"deletes-${id.operatorId}-${id.partitionId}.db"
+  private val deletesFileFullPath = s"${localStorePath}/${version}/${deletesFileName}"
+  private val deletesFromVersionDb = DBMaker
+    .fileDB(deletesFileFullPath)
+    .fileMmapEnableIfSupported()
+    .make()
+  private val deletesFromVersion = deletesFromVersionDb
+    .hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
     .createOrOpen()
 
   override def get(key: UnsafeRow): UnsafeRow = {
     val keyInBytes = key.getBytes
-    val valueBytes = Option(versionMap.get(keyInBytes)).getOrElse(mapWithAllEntries.get(keyInBytes))
+    val valueBytes = Option(updatesFromVersion.get(keyInBytes)).getOrElse(mapWithAllEntries.get(keyInBytes))
     mapWithAllEntries.remove(keyInBytes)
     if (valueBytes == null) {
       null
@@ -40,71 +56,75 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   override def put(key: UnsafeRow, value: UnsafeRow): Unit = {
     // TODO: do I need the .copy() here? After all, I'm copying the bytes and they shouldn't be
     //       conflicted between runs
-    println(s"Putting the key ${key} >> ${value}")
     // The key was already removed from the `mapWithAllEntries`
-    versionMap.put(key.getBytes, value.getBytes)
+    updatesFromVersion.put(key.getBytes, value.getBytes)
+    mapWithAllEntries.remove(key.getBytes)
+    // do not put to the mapAllEntries because we want to preserve the updates in the
+    // updatesFromVersion and do not duplicate the entries
   }
 
   override def remove(key: UnsafeRow): Unit = {
     val keyInBytes = key.getBytes
-    deletesMap.add(keyInBytes)
-    versionMap.remove(keyInBytes)
+    deletesFromVersion.add(keyInBytes)
+    updatesFromVersion.remove(keyInBytes)
     mapWithAllEntries.remove(keyInBytes)
   }
 
   override def commit(): Long = {
     println(s"Committing the state for ${id.partitionId}")
-    db.commit()
-    numberOfKeys += versionMap.getKeys.asScala.size.toLong
+    numberOfKeys += updatesFromVersion.getKeys.asScala.size.toLong
     numberOfKeys += mapWithAllEntries.getKeys.asScala.size.toLong
 
-    checkpointStoreFiles(versionMap.getStores.toSet, s"delta-${version}-updates")
-    // BK: no idea why we cannot get the stores directly for the set?
-    checkpointStoreFiles(deletesMap.getMap.getStores.toSet, s"delta-${version}-deletes")
+    updatesFromVersionDb.commit() // Commit is a required marked to conisder the .db file as fully valid
+    println(s"Writing updates to ${checkpointStorePath}/${updatesFileName}")
+    FileUtils.copyFile(new File(updatesFileFullPath), new File(
+      s"${checkpointStorePath}/${updatesFileName}"
+    ))
+    deletesFromVersionDb.commit()
+    println(s"Writing deletes to ${checkpointStorePath}/${deletesFileName}")
+    FileUtils.copyFile(new File(deletesFileFullPath), new File(
+      s"${checkpointStorePath}/${deletesFileName}"
+    ))
 
-    versionMap.getEntries.asScala.foreach(deltaMapEntry => {
-      mapWithAllEntries.put(deltaMapEntry.getKey, deltaMapEntry.getValue)
-      versionMap.remove(deltaMapEntry.getKey)
+    updatesFromVersion.getEntries.asScala.foreach(entry => {
+      mapWithAllEntries.put(entry.getKey, entry.getValue)
+      updatesFromVersion.remove(entry.getKey)
     })
-
-    // TODO: make it dynamic
-    if (version % 5 == 0) {
+    mapAllEntriesDb.commit()
+    if (performLocalSnapshot) {
       // if the snapshot check is reached, save allMaps too and thanks to that,
       // the maintenance thread will simply take a copy of that file and put it to the DFS!
       // That's the simplest way I found ,feel free to share if you find a more efficient alternative
-      dumpMapToFile(localSnapshotPath)(mapWithAllEntries.getStores.toSet, s"snapshot-${version}")
+      // TODO: the name of mapwithAllEntries is duplicated ==> use a shared value!
+      println(s"Snapshoting the state to ${localSnapshotPath}/${version}/snapshot-${id.operatorId}-${id.partitionId}.db")
+      FileUtils.copyFile(
+        new File(s"${localStorePath}/state-${id.operatorId}-${id.partitionId}.db"),
+        new File(s"${localSnapshotPath}/${version}/snapshot-${id.operatorId}-${id.partitionId}.db")
+      )
     }
     isCommitted = true
     version
   }
 
-  private def dumpMapToFile(outputDir: String)(stores: Set[Store], filePrefix: String) = {
-    stores.foreach(store => {
-      store.getAllFiles.asScala.foreach(fileToCheckpointFullPath => {
-        val sourceFileName = fileToCheckpointFullPath.split("/").last
-        FileUtils.copyFile(new File(fileToCheckpointFullPath),
-          new File(s"${checkpointStorePath}/${filePrefix}/${sourceFileName}"))
-      })
-    })
-  }
-
-  private def checkpointStoreFiles(stores: Set[Store], filePrefix: String) = dumpMapToFile(checkpointStorePath) _
-
   override def abort(): Unit = {
     println(s"Aborting the state store for ${version}")
-    db.rollback()
+    mapAllEntriesDb.rollback()
+    deletesFromVersionDb.close()
+    updatesFromVersionDb.close()
     isCommitted = false
   }
 
   override def iterator(): Iterator[UnsafeRowPair] = {
-    val unsafeRowPair = new UnsafeRowPair()
-    Seq(versionMap, mapWithAllEntries).flatMap(mapToTransform => mapToTransform.getEntries.asScala.map(entry => {
-      val key = new UnsafeRow(keySchema.fields.length)
-      key.pointTo(entry.getKey, entry.getKey.length)
-      val value = convertValueToUnsafeRow(entry.getValue)
-      // TODO: using an UnsafeRowPair outside the mapper comes from the default state ==> WHY?
-      unsafeRowPair.withRows(key, value)
-    })).toIterator
+    Seq(updatesFromVersion, mapWithAllEntries).flatMap(mapToTransform => {
+      val unsafeRowPair = new UnsafeRowPair()
+      mapToTransform.getEntries.asScala.map(entry => {
+        val key = new UnsafeRow(keySchema.fields.length)
+        key.pointTo(entry.getKey, entry.getKey.length)
+        val value = convertValueToUnsafeRow(entry.getValue)
+        // TODO: using an UnsafeRowPair outside the mapper comes from the default state ==> WHY?
+        unsafeRowPair.withRows(key, value)
+      })
+    }).toIterator
   }
 
   override def metrics: StateStoreMetrics = {
@@ -123,4 +143,8 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
     unsafeRowFromBytes.pointTo(bytes, bytes.length)
     unsafeRowFromBytes
   }
+}
+
+object MapDBStateStore {
+  val EntriesName = "state-all-entries"
 }

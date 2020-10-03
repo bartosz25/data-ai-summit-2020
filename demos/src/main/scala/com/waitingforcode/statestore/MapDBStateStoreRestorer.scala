@@ -2,6 +2,7 @@ package com.waitingforcode.statestore
 
 import java.io.File
 
+import com.waitingforcode.statestore.MapDBStateStore.EntriesName
 import org.mapdb.{DBMaker, HTreeMap, Serializer}
 
 import scala.collection.JavaConverters.asScalaSetConverter
@@ -15,7 +16,7 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
     .fileMmapEnableIfSupported()
     .make()
 
-  private val allEntriesMap = db.hashMap(s"state-all-entries",
+  private val allEntriesMap = db.hashMap(EntriesName,
     Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
 
   def restoreFromSnapshot(): this.type = {
@@ -25,7 +26,7 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
         .fileDB(s"${checkpointDir}/snapshot-${lastSnapshotVersion}")
         .fileMmapEnableIfSupported()
         .make()
-      val allStates = db.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
+      val allStates = db.hashMap(EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
         .createOrOpen()
       allEntriesMap.putAll(allStates)
     }
@@ -54,7 +55,7 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
       .fileDB(s"${checkpointDir}/delta-${deltaVersion}-update")
       .fileMmapEnableIfSupported()
       .make()
-    dbUpdate.hashMap("state-all-entries", Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
+    dbUpdate.hashMap(EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
   }
 
   def restoreDeletesFromDelta(checkpointDir: String, deltaVersion: Long) = {
@@ -62,7 +63,7 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
       .fileDB(s"${checkpointDir}/delta-${deltaVersion}-delete")
       .fileMmapEnableIfSupported()
       .make()
-    dbRemove.hashSet("state-all-entries", Serializer.BYTE_ARRAY).createOrOpen()
+    dbRemove.hashSet(EntriesName, Serializer.BYTE_ARRAY).createOrOpen()
   }
 
 }
