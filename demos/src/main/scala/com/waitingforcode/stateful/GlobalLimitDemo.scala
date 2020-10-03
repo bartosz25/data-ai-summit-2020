@@ -24,7 +24,7 @@ object GlobalLimitDemo extends App {
   val firstTwoItemsQuery = inputKafkaRecords.selectExpr("CAST(value AS STRING)")
     .select(functions.from_json($"value", inputKafkaRecordSchema).as("record"))
     .selectExpr("record.*")
-    .limit(6)
+    .limit(2)
 
   val checkpointDir = "/tmp/data+ai/stateful/global_limit/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))

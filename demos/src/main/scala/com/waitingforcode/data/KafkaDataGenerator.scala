@@ -1,6 +1,6 @@
 package com.waitingforcode.data
 
-import com.waitingforcode.data.configuration.{AggregationDataGeneratorConfiguration, DropDuplicatesDataGeneratorConfiguration, FlatMapGroupsWithStateDataGeneratorConfiguration, GlobalLimitDataGeneratorConfiguration, MapGroupsWithStateDataGeneratorConfiguration, MultipleStateOperationsDataGeneratorConfiguration}
+import com.waitingforcode.data.configuration.{AggregationDataGeneratorConfiguration, CustomCheckpointDataGeneratorConfiguration, DropDuplicatesDataGeneratorConfiguration, FlatMapGroupsWithStateDataGeneratorConfiguration, GlobalLimitDataGeneratorConfiguration, MapGroupsWithStateDataGeneratorConfiguration, MultipleStateOperationsDataGeneratorConfiguration, StreamStreamJoinsAdsDataGeneratorConfiguration, StreamStreamJoinsClicksDataGeneratorConfiguration}
 import com.waitingforcode.source.KafkaConfiguration
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
@@ -15,10 +15,13 @@ object KafkaDataGenerator extends App {
     "global_limit" -> GlobalLimitDataGeneratorConfiguration,
     "multiple_states" -> MultipleStateOperationsDataGeneratorConfiguration,
     "mapgroupswithstate" -> MapGroupsWithStateDataGeneratorConfiguration,
-    "flatmapgroupswithstate" -> FlatMapGroupsWithStateDataGeneratorConfiguration
+    "flatmapgroupswithstate" -> FlatMapGroupsWithStateDataGeneratorConfiguration,
+    "streamstreamjoinads" -> StreamStreamJoinsAdsDataGeneratorConfiguration,
+    "streamstreamjoinclicks" -> StreamStreamJoinsClicksDataGeneratorConfiguration,
+    "customcheckpoint" -> CustomCheckpointDataGeneratorConfiguration
   )
 
-  val configuration = configurations("flatmapgroupswithstate") // configurations(args(1))
+  val configuration = configurations(args(0)) // configurations(args(1))
 
   println("== Deleting already existing topic ==")
   val deleteTopicResult =
