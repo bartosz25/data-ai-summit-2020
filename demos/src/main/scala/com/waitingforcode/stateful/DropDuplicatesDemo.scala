@@ -25,7 +25,7 @@ object DropDuplicatesDemo extends App {
     .select(functions.from_json($"value", inputKafkaRecordSchema).as("record"))
     .selectExpr("record.*")
     .withWatermark("event_time", "25 minutes")
-    .dropDuplicates("id")
+    .dropDuplicates("id", "event_time")
 
   val checkpointDir = "/tmp/data+ai/stateful/drop_duplicates/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
