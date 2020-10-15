@@ -3,11 +3,13 @@ package com.waitingforcode.statestore
 import java.io.File
 
 import com.waitingforcode.statestore.MapDBStateStore.EntriesName
+import org.apache.spark.internal.Logging
 import org.mapdb.{DBMaker, HTreeMap, Serializer}
 
 import scala.collection.JavaConverters.asScalaSetConverter
 
-case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: Long, stateStoreVersionToRestore: Long) {
+case class MapDBStateStoreRestorer(namingFactory: MapDBStateStoreNamingFactory, lastSnapshotVersion: Long,
+                                   stateStoreVersionToRestore: Long) extends Logging {
 
   private val temporaryDbDir = s"/tmp/restore-${lastSnapshotVersion}"
   new File(temporaryDbDir).delete()
@@ -21,9 +23,9 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
 
   def restoreFromSnapshot(): this.type = {
     if (lastSnapshotVersion > 0) {
-      println(s"Restoring snapshot ${lastSnapshotVersion}")
+      logInfo(s"Restoring snapshot ${lastSnapshotVersion}")
       val db = DBMaker
-        .fileDB(s"${checkpointDir}/snapshot-${lastSnapshotVersion}")
+        .fileDB(namingFactory.checkpointSnapshot(lastSnapshotVersion))
         .fileMmapEnableIfSupported()
         .make()
       val allStates = db.hashMap(EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -35,10 +37,10 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
 
   def applyUpdatesAndDeletes(): this.type = {
     (lastSnapshotVersion+1 to stateStoreVersionToRestore).foreach(deltaToLoad => {
-      println(s"Loading ${deltaToLoad}")
-      val updates = restoreUpdatesFromDelta(checkpointDir, deltaToLoad)
+      logInfo(s"Loading ${deltaToLoad}")
+      val updates = restoreUpdatesFromDelta(deltaToLoad)
       allEntriesMap.putAll(updates)
-      val deletes = restoreDeletesFromDelta(checkpointDir, deltaToLoad)
+      val deletes = restoreDeletesFromDelta(deltaToLoad)
       deletes.asScala.foreach(entry => {
         allEntriesMap.remove(entry)
       })
@@ -50,17 +52,17 @@ case class MapDBStateStoreRestorer(checkpointDir: String, lastSnapshotVersion: L
     allEntriesMap
   }
 
-  def restoreUpdatesFromDelta(checkpointDir: String, deltaVersion: Long) = {
+  def restoreUpdatesFromDelta(deltaVersion: Long) = {
     val dbUpdate = DBMaker
-      .fileDB(s"${checkpointDir}/delta-${deltaVersion}-update")
+      .fileDB(namingFactory.checkpointDeltaForUpdate(deltaVersion))
       .fileMmapEnableIfSupported()
       .make()
     dbUpdate.hashMap(EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
   }
 
-  def restoreDeletesFromDelta(checkpointDir: String, deltaVersion: Long) = {
+  def restoreDeletesFromDelta(deltaVersion: Long) = {
     val dbRemove = DBMaker
-      .fileDB(s"${checkpointDir}/delta-${deltaVersion}-delete")
+      .fileDB(namingFactory.checkpointDeltaForDelete(deltaVersion))
       .fileMmapEnableIfSupported()
       .make()
     dbRemove.hashSet(EntriesName, Serializer.BYTE_ARRAY).createOrOpen()

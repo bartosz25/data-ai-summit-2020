@@ -94,7 +94,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     dbStore.put(keyToUpdate, valueToUpdate)
     dbStore.commit()
 
-    val updatesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/updates-1-0.db")
+    val updatesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/updates-1-0.db")
     val updatesSavedMap = updatesDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -104,7 +104,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     updatedEntries should have size 2
     updatedEntries should contain allOf(("3", "C"), ("1", "A"))
 
-    val deletesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/deletes-1-0.db")
+    val deletesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/deletes-1-0.db")
     val deletesSet = deletesDb
       .hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -112,7 +112,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     deletedEntries should have size 1
     deletedEntries(0) shouldEqual "2"
 
-    val localSnapshotDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/snapshot/1/snapshot-1-0.db")
+    val localSnapshotDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/local/1/snapshot-1-0.db")
     val localSnapshotMap = localSnapshotDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -139,10 +139,11 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
                                     performSnapshot: Boolean = false) = {
     val testDir = s"${testTemporaryDir}/test${testNumber}"
     new File(testDir).mkdirs()
-    new File(s"${testDir}/checkpoint/1").mkdirs()
-    new File(s"${testDir}/snapshot/1").mkdirs()
-    new File(s"${testDir}/local-store/1").mkdirs()
-    val db = testedDb(s"${testDir}/local-store/state-1-0.db")
+    val namingFactory =  MapDBStateStoreNamingFactory(s"${testDir}/checkpoint",
+      s"${testDir}/local", 1L, 0)
+    new File(s"${testDir}/checkpoint").mkdirs()
+    new File(s"${testDir}/local").mkdirs()
+    val db = testedDb(namingFactory.allEntriesFile)
     val mapWithAllEntries = db
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -151,15 +152,14 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
         unsafeRow(keySchema, key).getBytes, unsafeRow(valueSchema, value).getBytes
       )
     }
+    new File(s"${testDir}/local/1").mkdirs()
     new MapDBStateStore(
       previousVersion = 0,
       id = StateStoreId(
         checkpointRootLocation = "", operatorId = 1L, partitionId = 0
       ),
-      checkpointStorePath = s"${testDir}/checkpoint",
-      localSnapshotPath = s"${testDir}/snapshot",
       performLocalSnapshot = performSnapshot,
-      localStorePath = s"${testDir}/local-store",
+      namingFactory = namingFactory,
       keySchema = keySchema,
       valueSchema = valueSchema,
       mapAllEntriesDb = db,

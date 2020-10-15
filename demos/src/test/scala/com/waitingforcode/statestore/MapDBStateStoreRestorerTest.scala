@@ -18,11 +18,10 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   behavior of "MapDBStateRestorer"
 
   before {
-    new File(s"${mapDBTestDirectory}/test1").mkdirs()
-    new File(s"${mapDBTestDirectory}/test2").mkdirs()
-    new File(s"${mapDBTestDirectory}/test3").mkdirs()
+    println("Setup test1")
+    new File(s"${mapDBTestDirectory}/test1/checkpoint/5/").mkdirs()
     val dbTest1 = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test1/snapshot-5")
+      .fileDB(s"${mapDBTestDirectory}/test1/checkpoint/5/snapshot-1-0.db")
       .fileMmapEnableIfSupported()
       .make()
     dbTest1.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -31,9 +30,11 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       "b".getBytes -> "2".getBytes).asJava)
     dbTest1.close()
 
+    println("Setup test2")
+    new File(s"${mapDBTestDirectory}/test2/checkpoint/5").mkdirs()
     val snapshotNumber = 5
     val dbTest2Snapshot = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test2/snapshot-${snapshotNumber}")
+      .fileDB(s"${mapDBTestDirectory}/test2/checkpoint/5/snapshot-1-0.db")
       .fileMmapEnableIfSupported()
       .make()
     dbTest2Snapshot.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -41,11 +42,14 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       "a".getBytes -> "1".getBytes,
       "b".getBytes -> "2".getBytes).asJava)
     dbTest2Snapshot.close()
+    val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test2/checkpoint/",
+      s"${mapDBTestDirectory}/test2/local/", 1L, 0)
     (1 until 5).foreach(number => {
       val deltaNumber = snapshotNumber + number
+      new File(s"${mapDBTestDirectory}/test2/checkpoint/${deltaNumber}").mkdirs()
       println(s"Writing ${deltaNumber}")
       val dbTestDelta = DBMaker
-        .fileDB(s"${mapDBTestDirectory}/test2/delta-${deltaNumber}-update")
+        .fileDB(namingFactory.checkpointDeltaForUpdate(deltaNumber))
         .fileMmapEnableIfSupported()
         .make()
       dbTestDelta.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -57,7 +61,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       dbTestDelta.close()
     })
     val dbTestDeltaDelete = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test2/delta-9-delete")
+      .fileDB(namingFactory.checkpointDeltaForDelete(9))
       .fileMmapEnableIfSupported()
       .make()
     dbTestDeltaDelete.hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
@@ -65,10 +69,14 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
     dbTestDeltaDelete.close()
 
     println("Setup test3")
+    new File(s"${mapDBTestDirectory}/test3").mkdirs()
+    val namingFactoryTest3 = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test3/checkpoint/",
+      s"${mapDBTestDirectory}/test3/local/", 1L, 0)
     (1 until 5).foreach(deltaNumber => {
       println(s"Writing ${deltaNumber}")
+      new File(s"${mapDBTestDirectory}/test3/checkpoint/${deltaNumber}").mkdirs()
       val dbTest3Delta = DBMaker
-        .fileDB(s"${mapDBTestDirectory}/test3/delta-${deltaNumber}-update")
+        .fileDB(namingFactoryTest3.checkpointDeltaForUpdate(deltaNumber))
         .fileMmapEnableIfSupported()
         .make()
       dbTest3Delta.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -80,7 +88,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       dbTest3Delta.close()
     })
     val dbTest3DeltaDelete = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test3/delta-3-delete")
+      .fileDB(namingFactoryTest3.checkpointDeltaForDelete(3))
       .fileMmapEnableIfSupported()
       .make()
     dbTest3DeltaDelete.hashSet(EntriesName, Serializer.BYTE_ARRAY)
@@ -93,7 +101,9 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   }
 
   it should "restore the database only from the snapshot version" in {
-    val allEntries = MapDBStateStoreRestorer(s"${mapDBTestDirectory}/test1/", 5, 5)
+    val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test1/checkpoint",
+      s"${mapDBTestDirectory}/test1/local", 1L, 0)
+    val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 5)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap
@@ -106,7 +116,9 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   }
 
   it should "restore the database from snapshot and delta files" in {
-    val allEntries = MapDBStateStoreRestorer(s"${mapDBTestDirectory}/test2/", 5, 9)
+    val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test2/checkpoint",
+      s"${mapDBTestDirectory}/test2/local", 1L, 0)
+    val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 9)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap
@@ -121,7 +133,9 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   }
 
   it should "restore the database only from the delta files" in {
-    val allEntries = MapDBStateStoreRestorer(s"${mapDBTestDirectory}/test3/", 0, 4)
+    val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test3/checkpoint",
+      s"${mapDBTestDirectory}/test3/local", 1L, 0)
+    val allEntries = MapDBStateStoreRestorer(namingFactory, 0, 4)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap
@@ -134,6 +148,5 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       ("1", "1"), ("2", "2"), ("3", "3"), ("4", "4"),
       ("a", "4"), ("b", "4"), ("c", "4"))
   }
-
 
 }

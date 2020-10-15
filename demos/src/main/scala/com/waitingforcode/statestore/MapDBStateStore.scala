@@ -3,6 +3,7 @@ package com.waitingforcode.statestore
 import java.io.File
 
 import org.apache.commons.io.FileUtils
+import org.apache.spark.internal.Logging
 import org.apache.spark.sql.catalyst.expressions.UnsafeRow
 import org.apache.spark.sql.execution.streaming.state.{StateStore, StateStoreId, StateStoreMetrics, UnsafeRowPair}
 import org.apache.spark.sql.types.StructType
@@ -10,20 +11,17 @@ import org.mapdb.{DB, DBMaker, HTreeMap, Serializer}
 
 import scala.collection.JavaConverters.asScalaSetConverter
 
-// TODO: for the checkpoint, use the StateStoreId !!
 class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
-                      checkpointStorePath: String, localSnapshotPath: String,
+                      namingFactory: MapDBStateStoreNamingFactory,
                       performLocalSnapshot: Boolean,
-                      localStorePath: String,
                       mapAllEntriesDb: DB, mapWithAllEntries: HTreeMap[Array[Byte], Array[Byte]],
-                      keySchema: StructType, valueSchema: StructType) extends StateStore {
+                      keySchema: StructType, valueSchema: StructType) extends StateStore with Logging {
 
   private var isCommitted = false
   val version = previousVersion + 1
   private var numberOfKeys = 0L
 
-  private val updatesFileName = s"updates-${id.operatorId}-${id.partitionId}.db"
-  private val updatesFileFullPath = s"${localStorePath}/${version}/${updatesFileName}"
+  private val updatesFileFullPath = namingFactory.localDeltaForUpdate(version)
   private val updatesFromVersionDb = DBMaker
     .fileDB(updatesFileFullPath)
     .fileMmapEnableIfSupported()
@@ -32,8 +30,7 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
     .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
     .createOrOpen()
 
-  private val deletesFileName = s"deletes-${id.operatorId}-${id.partitionId}.db"
-  private val deletesFileFullPath = s"${localStorePath}/${version}/${deletesFileName}"
+  private val deletesFileFullPath = namingFactory.localDeltaForDelete(version)
   private val deletesFromVersionDb = DBMaker
     .fileDB(deletesFileFullPath)
     .fileMmapEnableIfSupported()
@@ -71,19 +68,19 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   }
 
   override def commit(): Long = {
-    println(s"Committing the state for ${id.partitionId}")
+    logInfo(s"Committing the state for ${id.partitionId}")
     numberOfKeys += updatesFromVersion.getKeys.asScala.size.toLong
     numberOfKeys += mapWithAllEntries.getKeys.asScala.size.toLong
 
-    updatesFromVersionDb.commit() // Commit is a required marked to conisder the .db file as fully valid
-    println(s"Writing updates to ${checkpointStorePath}/${updatesFileName}")
+    updatesFromVersionDb.commit() // Commit is a required marker to consider the .db file as fully valid
+    logInfo(s"Writing updates to ${updatesFileFullPath}")
     FileUtils.copyFile(new File(updatesFileFullPath), new File(
-      s"${checkpointStorePath}/${updatesFileName}"
+      namingFactory.checkpointDeltaForUpdate(version)
     ))
     deletesFromVersionDb.commit()
-    println(s"Writing deletes to ${checkpointStorePath}/${deletesFileName}")
+    logInfo(s"Writing deletes to ${deletesFileFullPath}")
     FileUtils.copyFile(new File(deletesFileFullPath), new File(
-      s"${checkpointStorePath}/${deletesFileName}"
+      namingFactory.checkpointDeltaForDelete(version)
     ))
 
     updatesFromVersion.getEntries.asScala.foreach(entry => {
@@ -95,11 +92,10 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
       // if the snapshot check is reached, save allMaps too and thanks to that,
       // the maintenance thread will simply take a copy of that file and put it to the DFS!
       // That's the simplest way I found ,feel free to share if you find a more efficient alternative
-      // TODO: the name of mapwithAllEntries is duplicated ==> use a shared value!
-      println(s"Snapshoting the state to ${localSnapshotPath}/${version}/snapshot-${id.operatorId}-${id.partitionId}.db")
+      val snapshotFileFullPath = namingFactory.localSnapshot(version)
+      logInfo(s"Taking the state snapshot to ${snapshotFileFullPath}")
       FileUtils.copyFile(
-        new File(s"${localStorePath}/state-${id.operatorId}-${id.partitionId}.db"),
-        new File(s"${localSnapshotPath}/${version}/snapshot-${id.operatorId}-${id.partitionId}.db")
+        new File(namingFactory.allEntriesFile), new File(snapshotFileFullPath)
       )
     }
     isCommitted = true
@@ -107,7 +103,7 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   }
 
   override def abort(): Unit = {
-    println(s"Aborting the state store for ${version}")
+    logWarning(s"Aborting the state store for ${version}")
     mapAllEntriesDb.rollback()
     deletesFromVersionDb.close()
     updatesFromVersionDb.close()
