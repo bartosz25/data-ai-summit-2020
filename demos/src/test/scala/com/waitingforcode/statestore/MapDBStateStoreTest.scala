@@ -70,12 +70,15 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     ))
     val keyToAdd = unsafeRow(keySchema, "1")
     val valueToAdd = unsafeRow(valueSchema, "A")
+    val keyToAdd3 = unsafeRow(keySchema, "3")
+    val valueToAdd3 = unsafeRow(valueSchema, "C")
 
     dbStore.put(keyToAdd, valueToAdd)
+    dbStore.put(keyToAdd3, valueToAdd3)
 
     val allEntries = dbStore.iterator().toSeq.map(entry => (entry.key, entry.value))
-    allEntries should have size 2
-    allEntries should contain allOf((keyToAdd, valueToAdd),
+    allEntries should have size 3
+    allEntries should contain allOf((keyToAdd, valueToAdd), (keyToAdd3, valueToAdd3),
       (unsafeRow(keySchema, "2"), unsafeRow(valueSchema, "b")))
   }
 

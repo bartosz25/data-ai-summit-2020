@@ -115,16 +115,18 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   }
 
   override def iterator(): Iterator[UnsafeRowPair] = {
-    Seq(updatesFromVersion, mapWithAllEntries).flatMap(mapToTransform => {
-      val unsafeRowPair = new UnsafeRowPair()
-      mapToTransform.getEntries.asScala.map(entry => {
-        val key = new UnsafeRow(keySchema.fields.length)
-        key.pointTo(entry.getKey, entry.getKey.length)
-        val value = convertValueToUnsafeRow(entry.getValue)
-        // TODO: using an UnsafeRowPair outside the mapper comes from the default state ==> WHY?
-        unsafeRowPair.withRows(key, value)
-      })
-    }).toIterator
+    val unsafeRowPair = new UnsafeRowPair()
+    def setKeyAndValueToUnsafeRowPair(entry: java.util.Map.Entry[Array[Byte], Array[Byte]]): UnsafeRowPair = {
+      val key = new UnsafeRow(keySchema.fields.length)
+      key.pointTo(entry.getKey, entry.getKey.length)
+      val value = convertValueToUnsafeRow(entry.getValue)
+      unsafeRowPair.withRows(key, value)
+    }
+    updatesFromVersion.getEntries.asScala.toIterator.map(entry => {
+      setKeyAndValueToUnsafeRowPair(entry)
+    }) ++ mapWithAllEntries.getEntries.asScala.toIterator.map(entry => {
+      setKeyAndValueToUnsafeRowPair(entry)
+    })
   }
 
   override def metrics: StateStoreMetrics = {
