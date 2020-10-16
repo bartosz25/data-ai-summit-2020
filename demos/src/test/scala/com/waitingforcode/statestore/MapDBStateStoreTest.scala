@@ -124,7 +124,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
   }
 
   it should "abort the state store changes and not write the local files" in {
-
+    fail("Implement me!")
   }
 
   private def unsafeRow(schema: StructType, value: String): UnsafeRow = {
