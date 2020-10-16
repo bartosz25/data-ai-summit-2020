@@ -109,6 +109,7 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   override def abort(): Unit = {
     logWarning(s"Aborting the state store for ${version}")
     mapAllEntriesDb.rollback()
+    mapAllEntriesDb.close()
     deletesFromVersionDb.close()
     updatesFromVersionDb.close()
     isCommitted = false

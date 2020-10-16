@@ -124,10 +124,38 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     })
     snapshotEntries should have size 2
     snapshotEntries should contain allOf(("3", "C"), ("1", "A"))
+    dbStore.hasCommitted shouldBe true
   }
 
   it should "abort the state store changes and not write the local files" in {
-    fail("Implement me!")
+    // Init some entries first
+    new File("/tmp/data+ai/test/mapdbstatestore/test5/local/").mkdirs()
+    val initStoreMap = testedDb("/tmp/data+ai/test/mapdbstatestore/test5/local/all-entries.db")
+    val initValues = initStoreMap
+      .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).create()
+    initValues.put("1".getBytes, "A".getBytes)
+    initStoreMap.commit()
+    initValues.close()
+    // Create tested state store now
+    val dbStore = testedMapDbStateStore(5, Seq(
+      ("1", "a"), ("2", "b")
+    ), performSnapshot = true)
+    val keyToAdd = unsafeRow(keySchema, "3")
+    val valueToAdd = unsafeRow(valueSchema, "C")
+    val keyToUpdate = unsafeRow(keySchema, "1")
+    val valueToUpdate = unsafeRow(valueSchema, "A")
+    val keyToRemove = unsafeRow(keySchema, "2")
+
+    dbStore.put(keyToAdd, valueToAdd)
+    dbStore.remove(keyToRemove)
+    dbStore.put(keyToUpdate, valueToUpdate)
+    dbStore.abort()
+
+    dbStore.hasCommitted shouldBe false
+    val abortedDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test5/local/all-entries.db")
+    val abortedMap = abortedDb.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).open()
+    abortedMap.size() shouldEqual   1
+    abortedMap.get("1".getBytes) shouldEqual "A".getBytes
   }
 
   private def unsafeRow(schema: StructType, value: String): UnsafeRow = {
@@ -174,6 +202,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     DBMaker
       .fileDB(testFile)
       .fileMmapEnableIfSupported()
+      .transactionEnable()
       .make()
   }
 

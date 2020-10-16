@@ -19,6 +19,7 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
   private lazy val db = DBMaker
     .fileDB(namingFactory.allEntriesFile)
     .fileMmapEnableIfSupported()
+    .transactionEnable()
     .make()
 
   private var mapWithAllEntries =
