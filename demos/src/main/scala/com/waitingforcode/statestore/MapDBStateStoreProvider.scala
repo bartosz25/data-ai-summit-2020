@@ -21,11 +21,8 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
     .fileMmapEnableIfSupported()
     .make()
 
-  // TODO: the questions I have regarding this db:
-  //       - if the fileDB will contain a transaction log or only the most recent values ?
   private var mapWithAllEntries =
     db.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
-
 
   override def init(stateStoreId: StateStoreId, keySchema: StructType, valueSchema: StructType,
                     keyIndexOrdinal: Option[Int], storeConfs: StateStoreConf,

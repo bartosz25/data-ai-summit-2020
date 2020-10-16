@@ -50,14 +50,18 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
     }
   }
 
+  /**
+   * In the ScalaDoc you can read that the key and value can be reused, so it's better
+   * to call .copy() on them. However, we're using here the bytes, so it's safe to call
+   * .getBytes without .copy().
+   * Check this [[com.waitingforcode.blogposts.UnsafeRowBytesCopyNeeded]] to see it in action.
+   *
+   * We're also removing the key from [[mapWithAllEntries]] to do not multiply the storage space.
+   * The updated key will be put back to this map in the [[commit()]] method.
+   */
   override def put(key: UnsafeRow, value: UnsafeRow): Unit = {
-    // TODO: do I need the .copy() here? After all, I'm copying the bytes and they shouldn't be
-    //       conflicted between runs
-    // The key was already removed from the `mapWithAllEntries`
     updatesFromVersion.put(key.getBytes, value.getBytes)
     mapWithAllEntries.remove(key.getBytes)
-    // do not put to the mapAllEntries because we want to preserve the updates in the
-    // updatesFromVersion and do not duplicate the entries
   }
 
   override def remove(key: UnsafeRow): Unit = {
