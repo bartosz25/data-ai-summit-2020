@@ -1,10 +1,13 @@
 package com.waitingforcode.statestore
 
+import com.waitingforcode.statestore.MapDBStateStoreProvider.NoCommittedVersionFlag
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.execution.streaming.state.{StateStore, StateStoreConf, StateStoreId, StateStoreProvider}
 import org.apache.spark.sql.types.StructType
 import org.mapdb.{DBMaker, Serializer}
+
+import scala.collection.JavaConverters.asScalaSetConverter
 
 class MapDBStateStoreProvider extends StateStoreProvider with Logging {
 
@@ -12,7 +15,7 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
   private var valueSchema: StructType = _
   private var stateStoreIdValue: StateStoreId = _
   private var stateStoreConf: StateStoreConf = _
-  private var lastCommittedVersion = -1L
+  private var lastCommittedVersion = NoCommittedVersionFlag
   private var houseKeeper: MapDBStateStoreHouseKeeper = _
   private var namingFactory: MapDBStateStoreNamingFactory = _
 
@@ -22,7 +25,7 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
     .transactionEnable()
     .make()
 
-  private var mapWithAllEntries =
+  private lazy val mapWithAllEntries =
     db.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY).createOrOpen()
 
   override def init(stateStoreId: StateStoreId, keySchema: StructType, valueSchema: StructType,
@@ -52,19 +55,25 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
 
   override def getStore(version: Long): StateStore = {
     logInfo(s"Getting the store for ${version}")
-    if (version > 0) {
+    if (version > 0 && lastCommittedVersion == NoCommittedVersionFlag) {
       val lastSnapshotVersion = if (version % this.stateStoreConf.minDeltasForSnapshot == 0) {
          version
       } else {
         (version / this.stateStoreConf.minDeltasForSnapshot) * this.stateStoreConf.minDeltasForSnapshot
       }
 
-      logInfo(s"Resting from snapshot=${lastSnapshotVersion}")
-      mapWithAllEntries = MapDBStateStoreRestorer(namingFactory, lastSnapshotVersion, version)
+      if (lastSnapshotVersion > 0) {
+        logInfo(s"Restoring for snapshot=${lastSnapshotVersion}")
+      } else {
+        logInfo(s"Snapshot not found, restoring from delta version ${lastSnapshotVersion}")
+      }
+      val restoredEntries = MapDBStateStoreRestorer(namingFactory, lastSnapshotVersion, version)
         .restoreFromSnapshot()
         .applyUpdatesAndDeletes()
         .getAllEntriesMap
-      logInfo("State restored correctly!")
+      restoredEntries.getEntries.asScala.foreach(entry => println(entry))
+      mapWithAllEntries.putAll(restoredEntries)
+      logInfo(s"State restored correctly! Got ${mapWithAllEntries.size()} entries")
     }
 
     lastCommittedVersion = version
@@ -84,4 +93,8 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
     houseKeeper.deleteTooOldVersions(minVersionsToRetain = stateStoreConf.minVersionsToRetain,
       lastCommittedVersion = lastCommittedVersion)
   }
+}
+
+object MapDBStateStoreProvider {
+  val NoCommittedVersionFlag = -1L
 }

@@ -37,7 +37,7 @@ case class MapDBStateStoreRestorer(namingFactory: MapDBStateStoreNamingFactory, 
 
   def applyUpdatesAndDeletes(): this.type = {
     (lastSnapshotVersion+1 to stateStoreVersionToRestore).foreach(deltaToLoad => {
-      logInfo(s"Loading ${deltaToLoad}")
+      logInfo(s"Restoring delta state store ${deltaToLoad}")
       val updates = restoreUpdatesFromDelta(deltaToLoad)
       allEntriesMap.putAll(updates)
       val deletes = restoreDeletesFromDelta(deltaToLoad)

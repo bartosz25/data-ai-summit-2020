@@ -14,7 +14,7 @@ class MapDBStateStoreNamingFactoryTest extends AnyFlatSpec with Matchers with Be
     namingFactoryToTest.localDeltaForUpdate(2L) shouldEqual "/local/2/updates-100-2.db"
     namingFactoryToTest.localDeltaForDelete(2L) shouldEqual "/local/2/deletes-100-2.db"
     namingFactoryToTest.localSnapshot(2L) shouldEqual "/local/2/snapshot-100-2.db"
-    namingFactoryToTest.allEntriesFile shouldEqual "/local/all-entries.db"
+    namingFactoryToTest.allEntriesFile shouldEqual "/local/all-entries-100-2.db"
   }
 
   it should "generate correct names for the checkpoint storage" in {

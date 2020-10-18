@@ -42,7 +42,6 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   override def get(key: UnsafeRow): UnsafeRow = {
     val keyInBytes = key.getBytes
     val valueBytes = Option(updatesFromVersion.get(keyInBytes)).getOrElse(mapWithAllEntries.get(keyInBytes))
-    mapWithAllEntries.remove(keyInBytes)
     if (valueBytes == null) {
       null
     } else {
@@ -51,7 +50,8 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   }
 
   /**
-   * In the ScalaDoc you can read that the key and value can be reused, so it's better
+   * In the ScalaDoc ([[org.apache.spark.sql.execution.streaming.state.StateStore.put]])
+   * you can read that the key and value can be reused, so it's better
    * to call .copy() on them. However, we're using here the bytes, so it's safe to call
    * .getBytes without .copy().
    * Check this [[com.waitingforcode.blogposts.UnsafeRowBytesCopyNeeded]] to see it in action.

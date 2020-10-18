@@ -21,7 +21,7 @@ object KafkaDataGenerator extends App {
     "customcheckpoint" -> CustomCheckpointDataGeneratorConfiguration
   )
 
-  val configuration = configurations(args(0)) // configurations(args(1))
+  val configuration = configurations(args(0))
 
   println("== Deleting already existing topic ==")
   val deleteTopicResult =
