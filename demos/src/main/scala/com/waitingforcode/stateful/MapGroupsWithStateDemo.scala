@@ -4,6 +4,7 @@ import java.io.File
 import java.sql.Timestamp
 import java.util.concurrent.TimeUnit
 
+import com.waitingforcode.OutputDirMapGroupsWithState
 import com.waitingforcode.data.configuration.MapGroupsWithStateDataGeneratorConfiguration
 import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
@@ -38,14 +39,15 @@ object MapGroupsWithStateDemo extends App {
     .mapGroupsWithState(GroupStateTimeout.EventTimeTimeout())(ClickActionMapper.mapUserActionsWithState)
 
   val sessionsToOutput = usersWithSessions.filter(session => session.isDefined)
+    .map(sessionToWrite => sessionToWrite.get)
 
   val checkpointDir = "/tmp/data+ai/stateful/mapgroupswithstate_demo/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirMapGroupsWithState))
   val consoleWriterQuery = sessionsToOutput.writeStream
-    .format("console")
-    .option("truncate", false)
     .outputMode(OutputMode.Update)
-    .option("checkpointLocation", checkpointDir).start()
+    .option("checkpointLocation", checkpointDir)
+    .foreachBatch(new BatchFilesWriter[UserClicks](OutputDirMapGroupsWithState)).start()
 
   explainQueryPlan(consoleWriterQuery)
 

@@ -3,6 +3,7 @@ package com.waitingforcode.stateful
 import java.io.File
 import java.util.concurrent.TimeUnit
 
+import com.waitingforcode.OutputDirFlatMapGroupsWithState
 import com.waitingforcode.data.configuration.FlatMapGroupsWithStateDataGeneratorConfiguration
 import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
@@ -37,11 +38,11 @@ object FlatMapGroupsWithStateDemo extends App {
 
   val checkpointDir = "/tmp/data+ai/stateful/flatmapgroupswithstate/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirFlatMapGroupsWithState))
   val consoleWriterQuery = usersWithSessions.writeStream
-    .format("console")
-    .option("truncate", false)
-    .outputMode(OutputMode.Update)
-    .option("checkpointLocation", checkpointDir).start()
+    .outputMode(OutputMode.Update())
+    .option("checkpointLocation", checkpointDir)
+    .foreachBatch(new BatchFilesWriter[UserClicks](OutputDirFlatMapGroupsWithState)).start()
 
   explainQueryPlan(consoleWriterQuery)
 

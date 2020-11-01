@@ -2,12 +2,13 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
+import com.waitingforcode.OutputDirWindowsWatermark
 import com.waitingforcode.source.SparkSessionFactory
 import com.waitingforcode.stateful.AggregationDemo.sumsStream
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.functions
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.{Row, functions}
 
 object WindowsWithWatermarkDemo extends App {
 
@@ -35,11 +36,11 @@ object WindowsWithWatermarkDemo extends App {
 
   val checkpointDir = "/tmp/data+ai/stateful/window_demo/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirWindowsWatermark))
   val consoleWriterQuery = sumsStream.writeStream
-    .format("console")
-    .option("truncate", false)
     .outputMode(OutputMode.Update)
-    .option("checkpointLocation", checkpointDir).start()
+    .option("checkpointLocation", checkpointDir)
+    .foreachBatch(new BatchFilesWriter[Row](OutputDirWindowsWatermark)).start()
 
   explainQueryPlan(consoleWriterQuery)
 

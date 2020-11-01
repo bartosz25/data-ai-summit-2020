@@ -2,10 +2,11 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
+import com.waitingforcode.OutputDirDropDuplicates
 import com.waitingforcode.data.configuration.DropDuplicatesDataGeneratorConfiguration
 import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.functions
+import org.apache.spark.sql.{Row, functions}
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
 
 object DropDuplicatesDemo extends App {
@@ -29,9 +30,9 @@ object DropDuplicatesDemo extends App {
 
   val checkpointDir = "/tmp/data+ai/stateful/drop_duplicates/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirDropDuplicates))
   val consoleWriterQuery = deduplicatedStream.writeStream
-    .format("console")
-    .option("truncate", false)
+    .foreachBatch(new BatchFilesWriter[Row](OutputDirDropDuplicates))
     .option("checkpointLocation", checkpointDir).start()
 
   explainQueryPlan(consoleWriterQuery)

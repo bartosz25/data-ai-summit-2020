@@ -2,11 +2,11 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
+import com.waitingforcode.OutputDirAggregation
 import com.waitingforcode.data.configuration.AggregationDataGeneratorConfiguration
 import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.functions
-import org.apache.spark.sql.streaming.OutputMode
+import org.apache.spark.sql.{Row, functions}
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
 
 object AggregationDemo extends App {
@@ -31,10 +31,9 @@ object AggregationDemo extends App {
 
   val checkpointDir = "/tmp/data+ai/stateful/aggregation_demo/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirAggregation))
   val consoleWriterQuery = sumsStream.writeStream
-    .format("console")
-    .option("truncate", false)
-    .outputMode(OutputMode.Complete())
+    .foreachBatch(new BatchFilesWriter[Row](OutputDirAggregation))
     .option("checkpointLocation", checkpointDir).start()
 
   explainQueryPlan(consoleWriterQuery)

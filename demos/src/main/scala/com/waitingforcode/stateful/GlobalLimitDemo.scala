@@ -2,10 +2,11 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
+import com.waitingforcode.OutputDirGlobalLimit
 import com.waitingforcode.data.configuration.GlobalLimitDataGeneratorConfiguration
 import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
 import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.functions
+import org.apache.spark.sql.{Row, functions}
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
 
 object GlobalLimitDemo extends App {
@@ -28,12 +29,13 @@ object GlobalLimitDemo extends App {
 
   val checkpointDir = "/tmp/data+ai/stateful/global_limit/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
+  FileUtils.deleteDirectory(new File(OutputDirGlobalLimit))
   val consoleWriterQuery = firstTwoItemsQuery.writeStream
-    .format("console")
-    .option("truncate", false)
+    .foreachBatch(new BatchFilesWriter[Row](OutputDirGlobalLimit))
     .option("checkpointLocation", checkpointDir).start()
 
   explainQueryPlan(consoleWriterQuery)
 
   consoleWriterQuery.awaitTermination()
 }
+
