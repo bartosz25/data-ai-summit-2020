@@ -22,6 +22,7 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
   private var numberOfKeys = 0L
 
   private val updatesFileFullPath = namingFactory.localDeltaForUpdate(version)
+
   private val updatesFromVersionDb = DBMaker
     .fileDB(updatesFileFullPath)
     .fileMmapEnableIfSupported()
@@ -110,7 +111,9 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
     logWarning(s"Aborting the state store for ${version}")
     mapAllEntriesDb.rollback()
     mapAllEntriesDb.close()
+    deletesFromVersion.clear()
     deletesFromVersionDb.close()
+    updatesFromVersion.clear()
     updatesFromVersionDb.close()
     isCommitted = false
   }
