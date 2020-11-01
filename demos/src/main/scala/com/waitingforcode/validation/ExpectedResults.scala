@@ -6,7 +6,7 @@ import java.sql.Timestamp
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.scala.DefaultScalaModule
 import com.waitingforcode.stateful.UserClicks
-import com.waitingforcode.{OutputDirDropDuplicates, OutputDirFlatMapGroupsWithState, OutputDirGlobalLimit, OutputDirMapGroupsWithState}
+import com.waitingforcode.{OutputDirDropDuplicates, OutputDirFlatMapGroupsWithState, OutputDirGlobalLimit, OutputDirMapGroupsWithState, OutputDirStreamStreamJoins}
 import org.apache.commons.io.FileUtils
 
 import scala.reflect.ClassTag
@@ -15,12 +15,12 @@ object ExpectedResults extends App {
 
   val Expectations: Map[String, ResultValidator[_]] = Map(
     //    OutputDirAggregation -> true,
+    OutputDirStreamStreamJoins -> StreamStreamJoinsResultValidator,
     OutputDirMapGroupsWithState -> MapGroupsWithStateResultValidator,
     OutputDirFlatMapGroupsWithState -> FlatMapGroupsWithStateResultValidator,
     OutputDirGlobalLimit -> GlobalLimitResultValidator,
     OutputDirDropDuplicates -> DropDuplicatesResultValidator
     //OutputDirMultipleStatefulOperations -> true,
-    //OutputDirStreamStreamJoins -> true,
     //OutputDirWindowsWatermark -> true
   )
 
@@ -198,4 +198,39 @@ object MapGroupsWithStateResultValidator extends ResultValidator[UserClicks] {
     },
   )
 }
+object StreamStreamJoinsResultValidator extends ResultValidator[AdClickJoined] {
+  override val inputDir: String = OutputDirStreamStreamJoins
+  override val validators: Iterator[Seq[AdClickJoined] => Boolean] = Iterator(
+    // 0, 1
+    inputRows => inputRows.isEmpty,
+    inputRows => inputRows.isEmpty,
+    // 2
+    inputRows => {
+      inputRows.size == 2 && inputRows.contains(AdClickJoined(
+        event_time = "2020-05-05T10:26:00.000+02:00", click_time = "2020-05-05T10:25:10.000+02:00",
+        ad_id = 1, click_ad_id = 1
+      )) && inputRows.contains(AdClickJoined(
+        event_time = "2020-05-05T10:26:00.000+02:00", click_time = "2020-05-05T10:26:10.000+02:00",
+        ad_id = 2, click_ad_id = 2
+      ))
+    },
+    // 3, 4, 5, 6, 7
+    inputRows => inputRows.isEmpty,
+    inputRows => inputRows.isEmpty,
+    inputRows => inputRows.isEmpty,
+    inputRows => inputRows.isEmpty,
+    inputRows => inputRows.isEmpty,
+    // 8
+    inputRows => {
+      inputRows.size == 2 && inputRows.contains(AdClickJoined(
+        event_time = "2020-05-05T10:57:00.000+02:00", click_time = "2020-05-05T10:47:00.000+02:00",
+        ad_id = 7, click_ad_id = 7
+      )) && inputRows.contains(AdClickJoined(
+        event_time = "2020-05-05T10:57:40.000+02:00", click_time = "2020-05-05T10:57:40.000+02:00",
+        ad_id = 8, click_ad_id = 8
+      ))
+    }
+  )
+}
 case class EventWithIdAndValue(event_time: String, id: Int, value: Int)
+case class AdClickJoined(event_time: String, ad_id: Int, click_time: String, click_ad_id: Int)
