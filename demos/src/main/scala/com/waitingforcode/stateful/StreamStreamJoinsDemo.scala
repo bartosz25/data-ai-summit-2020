@@ -11,6 +11,15 @@ object StreamStreamJoinsDemo extends App {
   val testExecutionWrapper = new TestExecutionWrapper[Row](StreamToStreamJoinStatefulAppConfig)
   import testExecutionWrapper.sparkSession.implicits._
 
+  val inputKafkaRecordsAds = testExecutionWrapper.inputStream
+  val inputKafkaRecordSchemaAds = StructType(Array(
+    StructField("event_time", TimestampType),
+    StructField("ad_id", IntegerType)
+  ))
+  val adsStream = inputKafkaRecordsAds.selectExpr("CAST(value AS STRING)")
+    .select(functions.from_json($"value", inputKafkaRecordSchemaAds).as("record"))
+    .selectExpr("record.*")
+
   val sourceContextClicks = SourceContext(StreamStreamJoinsClicksDataGeneratorConfiguration.topicName)
   val inputKafkaRecordsClicks = sourceContextClicks.inputStream(testExecutionWrapper.sparkSession)
   val inputKafkaRecordSchemaClicks = StructType(Array(
@@ -23,14 +32,6 @@ object StreamStreamJoinsDemo extends App {
     .select($"event_time".as("click_time"), $"ad_id".as("clicks_ad_id"))
     .withWatermark("click_time", "20 seconds")
 
-  val inputKafkaRecordsAds = testExecutionWrapper.inputStream
-  val inputKafkaRecordSchemaAds = StructType(Array(
-    StructField("event_time", TimestampType),
-    StructField("ad_id", IntegerType)
-  ))
-  val adsStream = inputKafkaRecordsAds.selectExpr("CAST(value AS STRING)")
-    .select(functions.from_json($"value", inputKafkaRecordSchemaAds).as("record"))
-    .selectExpr("record.*")
 
   val joinedStream = adsStream.join(clicksStream,
     adsStream("ad_id") === clicksStream("clicks_ad_id") &&

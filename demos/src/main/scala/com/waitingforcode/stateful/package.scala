@@ -30,7 +30,7 @@ package object stateful {
 
 class TestExecutionWrapper[T](appConfig: StatefulAppConfig, cleanUp: Boolean = true) {
 
-  if (cleanUp) AggregationStatefulAppConfig.cleanUpDirs
+  if (cleanUp) appConfig.cleanUpDirs
 
   val sparkSession = SparkSessionFactory.defaultSparkSession(appConfig)
   val sourceContext = SourceContext(appConfig.dataConfig.topicName)

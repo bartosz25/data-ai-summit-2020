@@ -21,7 +21,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
     println("Setup test1")
     new File(s"${mapDBTestDirectory}/test1/checkpoint/5/").mkdirs()
     val dbTest1 = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test1/checkpoint/5/snapshot-1-0.db")
+      .fileDB(s"${mapDBTestDirectory}/test1/checkpoint/5/snapshot-main-1-0.db")
       .fileMmapEnableIfSupported()
       .make()
     dbTest1.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -34,7 +34,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
     new File(s"${mapDBTestDirectory}/test2/checkpoint/5").mkdirs()
     val snapshotNumber = 5
     val dbTest2Snapshot = DBMaker
-      .fileDB(s"${mapDBTestDirectory}/test2/checkpoint/5/snapshot-1-0.db")
+      .fileDB(s"${mapDBTestDirectory}/test2/checkpoint/5/snapshot-main-1-0.db")
       .fileMmapEnableIfSupported()
       .make()
     dbTest2Snapshot.hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
@@ -43,7 +43,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
       "b".getBytes -> "2".getBytes).asJava)
     dbTest2Snapshot.close()
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test2/checkpoint/",
-      s"${mapDBTestDirectory}/test2/local/", 1L, 0)
+      s"${mapDBTestDirectory}/test2/local/", 1L, 0, "main")
     (1 until 5).foreach(number => {
       val deltaNumber = snapshotNumber + number
       new File(s"${mapDBTestDirectory}/test2/checkpoint/${deltaNumber}").mkdirs()
@@ -71,7 +71,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
     println("Setup test3")
     new File(s"${mapDBTestDirectory}/test3").mkdirs()
     val namingFactoryTest3 = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test3/checkpoint/",
-      s"${mapDBTestDirectory}/test3/local/", 1L, 0)
+      s"${mapDBTestDirectory}/test3/local/", 1L, 0, "main")
     (1 until 5).foreach(deltaNumber => {
       println(s"Writing ${deltaNumber}")
       new File(s"${mapDBTestDirectory}/test3/checkpoint/${deltaNumber}").mkdirs()
@@ -102,7 +102,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
 
   it should "restore the database only from the snapshot version" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test1/checkpoint",
-      s"${mapDBTestDirectory}/test1/local", 1L, 0)
+      s"${mapDBTestDirectory}/test1/local", 1L, 0, "main")
     val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 5)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
@@ -117,7 +117,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
 
   it should "restore the database from snapshot and delta files" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test2/checkpoint",
-      s"${mapDBTestDirectory}/test2/local", 1L, 0)
+      s"${mapDBTestDirectory}/test2/local", 1L, 0, "main")
     val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 9)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
@@ -134,7 +134,7 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
 
   it should "restore the database only from the delta files" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test3/checkpoint",
-      s"${mapDBTestDirectory}/test3/local", 1L, 0)
+      s"${mapDBTestDirectory}/test3/local", 1L, 0, "main")
     val allEntries = MapDBStateStoreRestorer(namingFactory, 0, 4)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()

@@ -41,7 +41,8 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
       localStorePath = storeConfs.confs("spark.sql.streaming.stateStore.mapdb.localPath"),
       checkpointStorePath = storeConfs.confs("spark.sql.streaming.stateStore.mapdb.checkpointPath"),
       operatorId = stateStoreId.operatorId,
-      partitionNumber = stateStoreId.partitionId
+      partitionNumber = stateStoreId.partitionId,
+      stateStoreName = stateStoreId.storeName
     )
     this.houseKeeper = new MapDBStateStoreHouseKeeper(namingFactory)
 

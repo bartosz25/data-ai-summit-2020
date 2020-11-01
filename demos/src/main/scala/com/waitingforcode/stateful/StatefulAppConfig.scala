@@ -2,18 +2,18 @@ package com.waitingforcode.stateful
 
 import java.io.File
 
-import com.waitingforcode.data.configuration.{AggregationDataGeneratorConfiguration, DataGenerationConfiguration, DropDuplicatesDataGeneratorConfiguration, FlatMapGroupsWithStateDataGeneratorConfiguration, GlobalLimitDataGeneratorConfiguration, MapGroupsWithStateDataGeneratorConfiguration, MultipleStateOperationsDataGeneratorConfiguration, StreamStreamJoinsAdsDataGeneratorConfiguration, StreamStreamJoinsClicksDataGeneratorConfiguration, WindowsWithWatermarkDataGeneratorConfiguration}
+import com.waitingforcode.data.configuration._
 import org.apache.commons.io.FileUtils
 
 sealed trait StatefulAppConfig {
-  val name: String
-  val appName: String
+  def name: String
+  def appName: String
   val dataConfig: DataGenerationConfiguration
-  private val baseDir = s"/tmp/data+ai/stateful/${name}"
-  val checkpointDir = s"${baseDir}/checkpoint"
-  val outputDir = s"${baseDir}/output"
-  val mapDbLocalPath = s"${baseDir}/mapdb-local"
-  val mapDbCheckpointPath = s"${baseDir}/mapdb-checkpoint"
+  private lazy val baseDir = s"/tmp/data+ai/stateful/${name}"
+  lazy val checkpointDir = s"${baseDir}/checkpoint"
+  lazy val outputDir = s"${baseDir}/output"
+  lazy val mapDbLocalPath = s"${baseDir}/mapdb-local"
+  lazy val mapDbCheckpointPath = s"${baseDir}/mapdb-checkpoint"
 
   def cleanUpDirs = {
     FileUtils.deleteDirectory(new File(baseDir))
@@ -56,13 +56,8 @@ object WindowsWithWatermarkStatefulAppConfig extends StatefulAppConfig {
 }
 
 object StreamToStreamJoinStatefulAppConfig extends StatefulAppConfig {
-  override val name: String = "stream_strema_joins"
+  override val name: String = "stream_stream_joins"
   override val appName: String = "[stateful] Stream-stream join demo"
   override val dataConfig: DataGenerationConfiguration = StreamStreamJoinsAdsDataGeneratorConfiguration
 
-}
-object JoinAdsStatefulAppConfig extends StatefulAppConfig {
-  override val name: String = "multiple_states_demo"
-  override val appName: String = "[stateful] Multiple state operations demo"
-  override val dataConfig: DataGenerationConfiguration = StreamStreamJoinsClicksDataGeneratorConfiguration
 }

@@ -97,7 +97,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     dbStore.put(keyToUpdate, valueToUpdate)
     dbStore.commit()
 
-    val updatesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/updates-1-0.db")
+    val updatesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/updates-main-1-0.db")
     val updatesSavedMap = updatesDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -107,7 +107,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     updatedEntries should have size 2
     updatedEntries should contain allOf(("3", "C"), ("1", "A"))
 
-    val deletesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/deletes-1-0.db")
+    val deletesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/deletes-main-1-0.db")
     val deletesSet = deletesDb
       .hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -115,7 +115,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     deletedEntries should have size 1
     deletedEntries(0) shouldEqual "2"
 
-    val localSnapshotDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/local/1/snapshot-1-0.db")
+    val localSnapshotDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/local/1/snapshot-main-1-0.db")
     val localSnapshotMap = localSnapshotDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -171,7 +171,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     val testDir = s"${testTemporaryDir}/test${testNumber}"
     new File(testDir).mkdirs()
     val namingFactory =  MapDBStateStoreNamingFactory(s"${testDir}/checkpoint",
-      s"${testDir}/local", 1L, 0)
+      s"${testDir}/local", 1L, 0, "main")
     new File(s"${testDir}/checkpoint").mkdirs()
     new File(s"${testDir}/local").mkdirs()
     val db = testedDb(namingFactory.allEntriesFile)
