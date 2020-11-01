@@ -4,9 +4,7 @@ import java.io.File
 import java.sql.Timestamp
 import java.util.concurrent.TimeUnit
 
-import com.waitingforcode.OutputDirMapGroupsWithState
-import com.waitingforcode.data.configuration.MapGroupsWithStateDataGeneratorConfiguration
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
+import com.waitingforcode.{OutputDirMapGroupsWithState, TestExecutionWrapper}
 import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
@@ -16,12 +14,10 @@ import scala.collection.mutable
 
 object MapGroupsWithStateDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] mapGroupsWithState demo")
-  import sparkSession.implicits._
-  val sourceContext = SourceContext(MapGroupsWithStateDataGeneratorConfiguration.topicName)
+  val testExecutionWrapper = new TestExecutionWrapper[UserClicks](MapGroupsWithStateStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
-
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("eventTime", TimestampType),
     StructField("userLogin", StringType),
@@ -44,14 +40,11 @@ object MapGroupsWithStateDemo extends App {
   val checkpointDir = "/tmp/data+ai/stateful/mapgroupswithstate_demo/checkpoint"
   FileUtils.deleteDirectory(new File(checkpointDir))
   FileUtils.deleteDirectory(new File(OutputDirMapGroupsWithState))
-  val consoleWriterQuery = sessionsToOutput.writeStream
-    .outputMode(OutputMode.Update)
-    .option("checkpointLocation", checkpointDir)
-    .foreachBatch(new BatchFilesWriter[UserClicks](OutputDirMapGroupsWithState)).start()
+  val writeQuery = testExecutionWrapper.writeToSink(sessionsToOutput, OutputMode.Update)
 
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writeQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writeQuery.awaitTermination()
 
 }
 

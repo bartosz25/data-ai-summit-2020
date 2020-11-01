@@ -1,8 +1,8 @@
 package com.waitingforcode.data.configuration
 
-object AggregationDataGeneratorConfiguration extends DataGenerationConfiguration {
+object WindowsWithWatermarkDataGeneratorConfiguration extends DataGenerationConfiguration {
 
-  override def topicName: String = "aggregation_demo"
+  override def topicName: String = "windows_watermark_demo"
 
   override protected var recordsToSend: Iterator[Seq[String]] = Iterator(
     Seq(

@@ -1,28 +1,17 @@
 package com.waitingforcode.stateful
 
-import java.io.File
-
-import com.waitingforcode.OutputDirWindowsWatermark
-import com.waitingforcode.source.SparkSessionFactory
+import com.waitingforcode.TestExecutionWrapper
 import com.waitingforcode.stateful.AggregationDemo.sumsStream
-import org.apache.commons.io.FileUtils
 import org.apache.spark.sql.streaming.OutputMode
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
 import org.apache.spark.sql.{Row, functions}
 
 object WindowsWithWatermarkDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Window demo")
-  import sparkSession.implicits._
+  val testExecutionWrapper = new TestExecutionWrapper[Row](WindowsWithWatermarkStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecords = sparkSession.readStream
-    .format("kafka")
-    .option("kafka.bootstrap.servers", "localhost:29092")
-    .option("client.id", s"window_demo_${System.currentTimeMillis()}")
-    .option("subscribe", "window_demo_topic")
-    .option("startingOffsets", "EARLIEST")
-    .load()
-
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("count", IntegerType)
@@ -34,16 +23,10 @@ object WindowsWithWatermarkDemo extends App {
     .withWatermark("event_time", "25 minutes")
     .groupBy(functions.window($"event_time", "10 minutes"))
 
-  val checkpointDir = "/tmp/data+ai/stateful/window_demo/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirWindowsWatermark))
-  val consoleWriterQuery = sumsStream.writeStream
-    .outputMode(OutputMode.Update)
-    .option("checkpointLocation", checkpointDir)
-    .foreachBatch(new BatchFilesWriter[Row](OutputDirWindowsWatermark)).start()
+  val writeQuery = testExecutionWrapper.writeToSink(sumsStream, OutputMode.Update)
 
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writeQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writeQuery.awaitTermination()
 
 }

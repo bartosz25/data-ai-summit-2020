@@ -1,21 +1,15 @@
 package com.waitingforcode.stateful
 
-import java.io.File
-
-import com.waitingforcode.OutputDirDropDuplicates
-import com.waitingforcode.data.configuration.DropDuplicatesDataGeneratorConfiguration
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
-import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{Row, functions}
+import com.waitingforcode.TestExecutionWrapper
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.{Row, functions}
 
 object DropDuplicatesDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Drop duplicates")
-  import sparkSession.implicits._
-  val sourceContext = SourceContext(DropDuplicatesDataGeneratorConfiguration.topicName)
+  val testExecutionWrapper = new TestExecutionWrapper[Row](DropDuplicatesStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("id", IntegerType),
@@ -28,14 +22,9 @@ object DropDuplicatesDemo extends App {
     .withWatermark("event_time", "25 minutes")
     .dropDuplicates("id", "event_time")
 
-  val checkpointDir = "/tmp/data+ai/stateful/drop_duplicates/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirDropDuplicates))
-  val consoleWriterQuery = deduplicatedStream.writeStream
-    .foreachBatch(new BatchFilesWriter[Row](OutputDirDropDuplicates))
-    .option("checkpointLocation", checkpointDir).start()
+  val writeQuery = testExecutionWrapper.writeToSink(deduplicatedStream)
 
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writeQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writeQuery.awaitTermination()
 }

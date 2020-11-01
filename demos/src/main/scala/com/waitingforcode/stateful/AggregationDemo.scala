@@ -1,21 +1,15 @@
 package com.waitingforcode.stateful
 
-import java.io.File
-
-import com.waitingforcode.OutputDirAggregation
-import com.waitingforcode.data.configuration.AggregationDataGeneratorConfiguration
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
-import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{Row, functions}
+import com.waitingforcode.TestExecutionWrapper
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.{Row, functions}
 
 object AggregationDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Aggregation demo")
-  import sparkSession.implicits._
-  val sourceContext = SourceContext(AggregationDataGeneratorConfiguration.topicName)
+  val testExecutionWrapper = new TestExecutionWrapper[Row](AggregationStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("group_id", IntegerType),
@@ -29,15 +23,10 @@ object AggregationDemo extends App {
     .groupBy(functions.window($"event_time", "10 minutes"))
     .sum("value")
 
-  val checkpointDir = "/tmp/data+ai/stateful/aggregation_demo/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirAggregation))
-  val consoleWriterQuery = sumsStream.writeStream
-    .foreachBatch(new BatchFilesWriter[Row](OutputDirAggregation))
-    .option("checkpointLocation", checkpointDir).start()
+  val writeQuery = testExecutionWrapper.writeToSink(sumsStream)
 
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writeQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writeQuery.awaitTermination()
 
 }

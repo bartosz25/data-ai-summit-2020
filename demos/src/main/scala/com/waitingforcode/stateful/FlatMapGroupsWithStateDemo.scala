@@ -1,24 +1,18 @@
 package com.waitingforcode.stateful
 
-import java.io.File
 import java.util.concurrent.TimeUnit
 
-import com.waitingforcode.OutputDirFlatMapGroupsWithState
-import com.waitingforcode.data.configuration.FlatMapGroupsWithStateDataGeneratorConfiguration
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
-import org.apache.commons.io.FileUtils
+import com.waitingforcode.TestExecutionWrapper
 import org.apache.spark.sql.functions
 import org.apache.spark.sql.streaming.{GroupState, GroupStateTimeout, OutputMode}
 import org.apache.spark.sql.types.{StringType, StructField, StructType, TimestampType}
 
 object FlatMapGroupsWithStateDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] flatMapGroupsWithState demo")
-  import sparkSession.implicits._
-  val sourceContext = SourceContext(FlatMapGroupsWithStateDataGeneratorConfiguration.topicName)
+  val testExecutionWrapper = new TestExecutionWrapper[UserClicks](FlatMapGroupsWithStateStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
-
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("eventTime", TimestampType),
     StructField("userLogin", StringType),
@@ -36,13 +30,7 @@ object FlatMapGroupsWithStateDemo extends App {
     .flatMapGroupsWithState(OutputMode.Update(),
       GroupStateTimeout.EventTimeTimeout())(ClickActionFlatMapper.flatMapUserActionsWithState)
 
-  val checkpointDir = "/tmp/data+ai/stateful/flatmapgroupswithstate/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirFlatMapGroupsWithState))
-  val consoleWriterQuery = usersWithSessions.writeStream
-    .outputMode(OutputMode.Update())
-    .option("checkpointLocation", checkpointDir)
-    .foreachBatch(new BatchFilesWriter[UserClicks](OutputDirFlatMapGroupsWithState)).start()
+  val consoleWriterQuery = testExecutionWrapper.writeToSink(usersWithSessions, OutputMode.Update())
 
   explainQueryPlan(consoleWriterQuery)
 

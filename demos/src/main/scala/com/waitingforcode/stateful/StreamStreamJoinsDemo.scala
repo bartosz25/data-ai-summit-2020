@@ -1,22 +1,18 @@
 package com.waitingforcode.stateful
 
-import java.io.File
-
-import com.waitingforcode.OutputDirStreamStreamJoins
-import com.waitingforcode.data.configuration.{StreamStreamJoinsAdsDataGeneratorConfiguration, StreamStreamJoinsClicksDataGeneratorConfiguration}
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
-import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{Row, functions}
+import com.waitingforcode.TestExecutionWrapper
+import com.waitingforcode.data.configuration.StreamStreamJoinsClicksDataGeneratorConfiguration
+import com.waitingforcode.source.SourceContext
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.{Row, functions}
 
 object StreamStreamJoinsDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Stream-stream join demo")
-  import sparkSession.implicits._
-  val sourceContextClicks = SourceContext(StreamStreamJoinsClicksDataGeneratorConfiguration.topicName)
-  val sourceContextAds = SourceContext(StreamStreamJoinsAdsDataGeneratorConfiguration.topicName)
+  val testExecutionWrapper = new TestExecutionWrapper[Row](StreamToStreamJoinStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val inputKafkaRecordsClicks = sourceContextClicks.inputStream(sparkSession)
+  val sourceContextClicks = SourceContext(StreamStreamJoinsClicksDataGeneratorConfiguration.topicName)
+  val inputKafkaRecordsClicks = sourceContextClicks.inputStream(testExecutionWrapper.sparkSession)
   val inputKafkaRecordSchemaClicks = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("ad_id", IntegerType)
@@ -27,7 +23,7 @@ object StreamStreamJoinsDemo extends App {
     .select($"event_time".as("click_time"), $"ad_id".as("clicks_ad_id"))
     .withWatermark("click_time", "20 seconds")
 
-  val inputKafkaRecordsAds = sourceContextAds.inputStream(sparkSession)
+  val inputKafkaRecordsAds = testExecutionWrapper.inputStream
   val inputKafkaRecordSchemaAds = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("ad_id", IntegerType)
@@ -40,15 +36,10 @@ object StreamStreamJoinsDemo extends App {
     adsStream("ad_id") === clicksStream("clicks_ad_id") &&
       functions.expr("event_time >= click_time"), "leftOuter")
 
-  val checkpointDir = "/tmp/data+ai/stateful/stream_stream_joins/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirStreamStreamJoins))
-  val consoleWriterQuery = joinedStream.writeStream
-    .option("checkpointLocation", checkpointDir)
-    .foreachBatch(new BatchFilesWriter[Row](OutputDirStreamStreamJoins)).start()
+  val writeQuery = testExecutionWrapper.writeToSink(joinedStream)
 // TODO: it's failing, use the storeName from StateStoreProvider StateStoreId parmaeter!
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writeQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writeQuery.awaitTermination()
 
 }

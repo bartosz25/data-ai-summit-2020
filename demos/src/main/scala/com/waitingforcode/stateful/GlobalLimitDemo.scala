@@ -1,22 +1,15 @@
 package com.waitingforcode.stateful
 
-import java.io.File
-
-import com.waitingforcode.OutputDirGlobalLimit
-import com.waitingforcode.data.configuration.GlobalLimitDataGeneratorConfiguration
-import com.waitingforcode.source.{SourceContext, SparkSessionFactory}
-import org.apache.commons.io.FileUtils
-import org.apache.spark.sql.{Row, functions}
+import com.waitingforcode.TestExecutionWrapper
 import org.apache.spark.sql.types.{IntegerType, StructField, StructType, TimestampType}
+import org.apache.spark.sql.{Row, functions}
 
 object GlobalLimitDemo extends App {
 
-  val sparkSession = SparkSessionFactory.defaultSparkSession("[stateful] Global limit")
-  import sparkSession.implicits._
+  val testExecutionWrapper = new TestExecutionWrapper[Row](GlobalLimitStatefulAppConfig)
+  import testExecutionWrapper.sparkSession.implicits._
 
-  val sourceContext = SourceContext(GlobalLimitDataGeneratorConfiguration.topicName)
-
-  val inputKafkaRecords = sourceContext.inputStream(sparkSession)
+  val inputKafkaRecords = testExecutionWrapper.inputStream
   val inputKafkaRecordSchema = StructType(Array(
     StructField("event_time", TimestampType),
     StructField("id", IntegerType),
@@ -27,15 +20,10 @@ object GlobalLimitDemo extends App {
     .selectExpr("record.*")
     .limit(2)
 
-  val checkpointDir = "/tmp/data+ai/stateful/global_limit/checkpoint"
-  FileUtils.deleteDirectory(new File(checkpointDir))
-  FileUtils.deleteDirectory(new File(OutputDirGlobalLimit))
-  val consoleWriterQuery = firstTwoItemsQuery.writeStream
-    .foreachBatch(new BatchFilesWriter[Row](OutputDirGlobalLimit))
-    .option("checkpointLocation", checkpointDir).start()
+  val writerQuery = testExecutionWrapper.writeToSink(firstTwoItemsQuery)
 
-  explainQueryPlan(consoleWriterQuery)
+  explainQueryPlan(writerQuery)
 
-  consoleWriterQuery.awaitTermination()
+  writerQuery.awaitTermination()
 }
 
