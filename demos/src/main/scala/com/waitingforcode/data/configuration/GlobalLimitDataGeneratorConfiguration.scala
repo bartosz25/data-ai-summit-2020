@@ -23,6 +23,6 @@ object GlobalLimitDataGeneratorConfiguration extends DataGenerationConfiguration
   )
 
   def jsonRecord(eventTime: String, id: Int) = {
-    s"""{ "event_time": "${eventTime}", "id": ${id} }"""
+    s"""{ "event_time": "${eventTime}", "id": ${id}, "value": ${id*10} }"""
   }
 }
