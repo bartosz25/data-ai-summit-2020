@@ -49,12 +49,6 @@ object MultipleStateOperationsStatefulAppConfig extends StatefulAppConfig {
   override val appName: String = "[stateful] Multiple state operations demo"
   override val dataConfig: DataGenerationConfiguration = MultipleStateOperationsDataGeneratorConfiguration
 }
-object WindowsWithWatermarkStatefulAppConfig extends StatefulAppConfig {
-  override val name: String = "window_demo"
-  override val appName: String = "[stateful] Window demo"
-  override val dataConfig: DataGenerationConfiguration = WindowsWithWatermarkDataGeneratorConfiguration
-}
-
 object StreamToStreamJoinStatefulAppConfig extends StatefulAppConfig {
   override val name: String = "stream_stream_joins"
   override val appName: String = "[stateful] Stream-stream join demo"
