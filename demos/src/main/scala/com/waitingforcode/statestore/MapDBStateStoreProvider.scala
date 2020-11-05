@@ -7,6 +7,8 @@ import org.apache.spark.sql.execution.streaming.state.{StateStore, StateStoreCon
 import org.apache.spark.sql.types.StructType
 import org.mapdb.{DBMaker, Serializer}
 
+import scala.collection.JavaConverters.asScalaSetConverter
+
 class MapDBStateStoreProvider extends StateStoreProvider with Logging {
 
   private var keySchema: StructType = _
@@ -73,7 +75,10 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
         .restoreFromSnapshot()
         .applyUpdatesAndDeletes()
         .getAllEntriesMap
-      mapWithAllEntries.putAll(restoredEntries)
+      restoredEntries.getEntries.asScala.foreach(entry => {
+        mapWithAllEntries.put(entry.getKey, entry.getValue)
+        restoredEntries.remove(entry.getKey)
+      })
       logInfo(s"State restored correctly! Got ${mapWithAllEntries.size()} entries")
     }
 
