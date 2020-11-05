@@ -6,7 +6,7 @@ import org.apache.spark.sql.{Row, functions}
 
 object AggregationDemo extends App {
 
-  val testExecutionWrapper = new TestExecutionWrapper[Row](AggregationStatefulAppConfig)
+  val testExecutionWrapper = new TestExecutionWrapper[Row](AggregationStatefulAppConfig, cleanUp = false)
   import testExecutionWrapper.sparkSession.implicits._
 
   val inputKafkaRecords = testExecutionWrapper.inputStream
@@ -21,7 +21,7 @@ object AggregationDemo extends App {
     .selectExpr("record.*")
     .withWatermark("event_time", "5 minutes")
     .groupBy(functions.window($"event_time", "10 minutes"))
-    .sum("value")
+    .sum("value").select($"window", $"sum(value)".as("sum"))
 
   val writeQuery = testExecutionWrapper.writeToSink(sumsStream)
 

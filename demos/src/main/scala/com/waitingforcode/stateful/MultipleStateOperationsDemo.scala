@@ -25,7 +25,7 @@ object MultipleStateOperationsDemo extends App {
 
   val windowStream = deduplicatedStream
     .groupBy(functions.window($"event_time", "10 minutes"))
-    .sum("value")
+    .sum("value").select($"window", $"sum(value)".as("sum"))
 
   val writeQuery = testExecutionWrapper.writeToSink(windowStream, OutputMode.Update)
 

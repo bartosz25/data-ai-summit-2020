@@ -38,7 +38,6 @@ object StreamStreamJoinsDemo extends App {
       functions.expr("event_time >= click_time"), "leftOuter")
 
   val writeQuery = testExecutionWrapper.writeToSink(joinedStream)
-// TODO: it's failing, use the storeName from StateStoreProvider StateStoreId parmaeter!
   explainQueryPlan(writeQuery)
 
   writeQuery.awaitTermination()
