@@ -77,16 +77,16 @@ class MapDBStateStore(previousVersion: Long, val id: StateStoreId,
     numberOfKeys += updatesFromVersion.getKeys.asScala.size.toLong
     numberOfKeys += mapWithAllEntries.getKeys.asScala.size.toLong
 
-    updatesFromVersionDb.commit() // Commit is a required marker to consider the .db file as fully valid
-    logInfo(s"Writing updates to ${updatesFileFullPath}")
-    FileUtils.copyFile(new File(updatesFileFullPath), new File(
-      namingFactory.checkpointDeltaForUpdate(version)
-    ))
-    deletesFromVersionDb.commit()
-    logInfo(s"Writing deletes to ${deletesFileFullPath}")
-    FileUtils.copyFile(new File(deletesFileFullPath), new File(
-      namingFactory.checkpointDeltaForDelete(version)
-    ))
+    def commitLocalStore(localDb: DB, localPath: String, checkpointPath: String): Unit = {
+      localDb.commit() // Commit is a required marker to consider the .db file as fully valid
+      logInfo(s"Writing updates to ${localPath}")
+      FileUtils.copyFile(new File(localPath), new File(
+        checkpointPath
+      ))
+      new File(localPath).delete()
+    }
+    commitLocalStore(updatesFromVersionDb, updatesFileFullPath, namingFactory.checkpointDeltaForUpdate(version))
+    commitLocalStore(deletesFromVersionDb, deletesFileFullPath, namingFactory.checkpointDeltaForDelete(version))
 
     updatesFromVersion.getEntries.asScala.foreach(entry => {
       mapWithAllEntries.put(entry.getKey, entry.getValue)

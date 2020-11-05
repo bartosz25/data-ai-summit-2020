@@ -11,7 +11,7 @@ import org.scalatest.BeforeAndAfter
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 
-import scala.collection.JavaConverters.asScalaSetConverter
+import scala.collection.JavaConverters.{asScalaSetConverter, collectionAsScalaIterableConverter}
 
 class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter {
 
@@ -83,6 +83,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
   }
 
   it should "correctly add, remove and update the elements and write them to the delta and local snapshot" in {
+    val testBaseDir = "/tmp/data+ai/test/mapdbstatestore/test4"
     val dbStore = testedMapDbStateStore(4, Seq(
       ("1", "a"), ("2", "b")
     ), performSnapshot = true)
@@ -97,7 +98,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     dbStore.put(keyToUpdate, valueToUpdate)
     dbStore.commit()
 
-    val updatesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/updates-main-1-0.db")
+    val updatesDb = testedDb(s"${testBaseDir}/checkpoint/1/updates-main-1-0.db")
     val updatesSavedMap = updatesDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -107,7 +108,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     updatedEntries should have size 2
     updatedEntries should contain allOf(("3", "C"), ("1", "A"))
 
-    val deletesDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/checkpoint/1/deletes-main-1-0.db")
+    val deletesDb = testedDb(s"${testBaseDir}/checkpoint/1/deletes-main-1-0.db")
     val deletesSet = deletesDb
       .hashSet(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -115,7 +116,7 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     deletedEntries should have size 1
     deletedEntries(0) shouldEqual "2"
 
-    val localSnapshotDb = testedDb("/tmp/data+ai/test/mapdbstatestore/test4/local/1/snapshot-main-1-0.db")
+    val localSnapshotDb = testedDb(s"${testBaseDir}/local/1/snapshot-main-1-0.db")
     val localSnapshotMap = localSnapshotDb
       .hashMap(MapDBStateStore.EntriesName, Serializer.BYTE_ARRAY, Serializer.BYTE_ARRAY)
       .createOrOpen()
@@ -125,6 +126,10 @@ class MapDBStateStoreTest extends AnyFlatSpec with Matchers with BeforeAndAfter 
     snapshotEntries should have size 2
     snapshotEntries should contain allOf(("3", "C"), ("1", "A"))
     dbStore.hasCommitted shouldBe true
+    val localFilesAfterCommit = FileUtils.listFiles(new File(s"${testBaseDir}/local/1"), null, true)
+      .asScala.map(file => file.getName).toSeq
+    localFilesAfterCommit should have size 1
+    localFilesAfterCommit(0) shouldEqual "snapshot-main-1-0.db"
   }
 
   it should "abort the state store changes and not write the local files" in {
