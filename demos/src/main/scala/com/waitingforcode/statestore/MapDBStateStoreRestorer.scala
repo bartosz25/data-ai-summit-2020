@@ -15,7 +15,7 @@ class MapDBStateStoreRestorer(namingFactory: MapDBStateStoreNamingFactory, lastS
   private val uniqueId = s"${stateStoreId.partitionId}-${stateStoreId.operatorId}-${stateStoreId.storeName}"
   private val temporaryRestoreDbFile = s"/tmp/restore-${lastSnapshotVersion}-${uniqueId}-${System.currentTimeMillis()}"
   new File(temporaryRestoreDbFile).delete()
-  println(s"Creating file ${temporaryRestoreDbFile}")
+  logInfo(s"Creating file ${temporaryRestoreDbFile}")
   private val db = DBMaker
     .fileDB(temporaryRestoreDbFile)
     .fileMmapEnableIfSupported()
