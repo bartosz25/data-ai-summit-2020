@@ -4,6 +4,7 @@ import java.io.File
 
 import com.waitingforcode.statestore.MapDBStateStore.EntriesName
 import org.apache.commons.io.FileUtils
+import org.apache.spark.sql.execution.streaming.state.StateStoreId
 import org.mapdb.{DBMaker, Serializer}
 import org.scalatest.BeforeAndAfter
 import org.scalatest.flatspec.AnyFlatSpec
@@ -103,7 +104,8 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   it should "restore the database only from the snapshot version" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test1/checkpoint",
       s"${mapDBTestDirectory}/test1/local", 1L, 0, "main")
-    val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 5)
+    val stateStoreId = StateStoreId("", 1, 1)
+    val allEntries = new MapDBStateStoreRestorer(namingFactory, 5, 5, stateStoreId)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap
@@ -118,7 +120,8 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   it should "restore the database from snapshot and delta files" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test2/checkpoint",
       s"${mapDBTestDirectory}/test2/local", 1L, 0, "main")
-    val allEntries = MapDBStateStoreRestorer(namingFactory, 5, 9)
+    val stateStoreId = StateStoreId("", 1, 1)
+    val allEntries = new MapDBStateStoreRestorer(namingFactory, 5, 9, stateStoreId)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap
@@ -135,7 +138,8 @@ class MapDBStateStoreRestorerTest extends AnyFlatSpec with Matchers with BeforeA
   it should "restore the database only from the delta files" in {
     val namingFactory = MapDBStateStoreNamingFactory(s"${mapDBTestDirectory}/test3/checkpoint",
       s"${mapDBTestDirectory}/test3/local", 1L, 0, "main")
-    val allEntries = MapDBStateStoreRestorer(namingFactory, 0, 4)
+    val stateStoreId = StateStoreId("", 1, 1)
+    val allEntries = new MapDBStateStoreRestorer(namingFactory, 0, 4, stateStoreId)
       .restoreFromSnapshot()
       .applyUpdatesAndDeletes()
       .getAllEntriesMap

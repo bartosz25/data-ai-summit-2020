@@ -4,17 +4,20 @@ import java.io.File
 
 import com.waitingforcode.statestore.MapDBStateStore.EntriesName
 import org.apache.spark.internal.Logging
+import org.apache.spark.sql.execution.streaming.state.StateStoreId
 import org.mapdb.{DBMaker, HTreeMap, Serializer}
 
 import scala.collection.JavaConverters.asScalaSetConverter
 
-case class MapDBStateStoreRestorer(namingFactory: MapDBStateStoreNamingFactory, lastSnapshotVersion: Long,
-                                   stateStoreVersionToRestore: Long) extends Logging {
+class MapDBStateStoreRestorer(namingFactory: MapDBStateStoreNamingFactory, lastSnapshotVersion: Long,
+                                   stateStoreVersionToRestore: Long, stateStoreId: StateStoreId) extends Logging {
 
-  private val temporaryDbDir = s"/tmp/restore-${lastSnapshotVersion}"
-  new File(temporaryDbDir).delete()
+  private val uniqueId = s"${stateStoreId.partitionId}-${stateStoreId.operatorId}-${stateStoreId.storeName}"
+  private val temporaryRestoreDbFile = s"/tmp/restore-${lastSnapshotVersion}-${uniqueId}-${System.currentTimeMillis()}"
+  new File(temporaryRestoreDbFile).delete()
+  println(s"Creating file ${temporaryRestoreDbFile}")
   private val db = DBMaker
-    .fileDB(temporaryDbDir)
+    .fileDB(temporaryRestoreDbFile)
     .fileMmapEnableIfSupported()
     .make()
 

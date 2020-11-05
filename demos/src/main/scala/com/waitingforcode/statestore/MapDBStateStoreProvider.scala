@@ -69,7 +69,7 @@ class MapDBStateStoreProvider extends StateStoreProvider with Logging {
       } else {
         logInfo(s"Snapshot not found, restoring from delta version ${lastSnapshotVersion}")
       }
-      val restoredEntries = MapDBStateStoreRestorer(namingFactory, lastSnapshotVersion, version)
+      val restoredEntries = new MapDBStateStoreRestorer(namingFactory, lastSnapshotVersion, version, stateStoreId)
         .restoreFromSnapshot()
         .applyUpdatesAndDeletes()
         .getAllEntriesMap
