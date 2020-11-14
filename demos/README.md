@@ -3,7 +3,7 @@ The repository illustrates my <a href="https://databricks.com/session_eu20/exten
 # Custom state store
 The customized state store is based on <a href="https://jankotek.gitbooks.io/mapdb/content/quick-start/" target="_blank">MapDB embedded database</a>. 
 You will find its implementation in [src/main/scala/com/waitingforcode/statestore](src/main/scala/com/waitingforcode/statestore) package and 
-the corresponding follow-up blog posts under <a href="#">TODO: define me</a> tag.
+the corresponding follow-up blog posts under <a href="https://www.waitingforcode.com/tags/data-ai-summit-europe-2020-articles"  target="_blank">Data+AI Summit Europe 2020 articles</a> tag.
 
 ## Testing
 Custom state store scenarios can be tested by executing the applications from 
@@ -28,10 +28,3 @@ that you want to test.
 - Once the application to test is ready, you can start to send the messages from
 `KafkaDataGenerator` by pressing `Enter` button. This action will deliver all records 
 from the next batch to send.
-
-# TODOs
-- [ ] define follow-up tag for custom state store
-- [ ] define follow-up tag for custom checkpoint manager
-- [ ] define follow-up tag for custom file committer
-- [ ] define custom checkpoint manager
-- [ ] define custom file committer
